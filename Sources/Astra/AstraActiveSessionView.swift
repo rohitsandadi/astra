@@ -13,7 +13,6 @@ struct AstraActiveSessionView: View {
                     VStack(spacing: 20) {
                         sessionHeader(at: context.date)
                         orbitalTimer(at: context.date)
-                        intention
                         enforcementIssues
                         sessionDetails(at: context.date)
                         controls(at: context.date)
@@ -34,11 +33,7 @@ struct AstraActiveSessionView: View {
     private func sessionHeader(at date: Date) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(session.preset.name.uppercased())
-                    .font(.caption.weight(.semibold))
-                    .tracking(1.2)
-                    .foregroundStyle(Color.astraAccent)
-                Text(isOnBreak(at: date) ? "A quiet pause." : "Focus is protected.")
+                Text(isOnBreak(at: date) ? "Break" : "Focus")
                     .font(.title.weight(.semibold))
             }
             Spacer()
@@ -87,38 +82,17 @@ struct AstraActiveSessionView: View {
     }
 
     @ViewBuilder
-    private var intention: some View {
-        if let intention = session.intention, !intention.isEmpty {
-            VStack(spacing: 7) {
-                Text("RIGHT NOW")
-                    .font(.caption2.weight(.semibold))
-                    .tracking(1.5)
-                    .foregroundStyle(.secondary)
-                Text(intention)
-                    .font(.title3.weight(.medium))
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: 560)
-            .padding(.vertical, 4)
-        }
-    }
-
-    @ViewBuilder
     private var enforcementIssues: some View {
         if !session.enforcementHealth.issues.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Some website blocking needs attention", systemImage: "exclamationmark.shield")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(Color.astraAccent)
-                ForEach(session.enforcementHealth.issues, id: \.self) { issue in
-                    Text(issue)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            HStack(spacing: 10) {
+                Label("Website access needs attention", systemImage: "exclamationmark.shield")
+                    .font(.callout.weight(.medium))
+                Spacer()
                 Button("Review browser access") {
                     model.selectedDestination = .settings
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
             }
             .frame(maxWidth: 560, alignment: .leading)
             .astraSurface(cornerRadius: AstraMetrics.compactCornerRadius, emphasized: true, padding: 12)
@@ -142,7 +116,7 @@ struct AstraActiveSessionView: View {
             detailItem(
                 systemImage: session.difficulty.systemImage,
                 value: session.difficulty.title,
-                label: "Boundary"
+                label: "Difficulty"
             )
         }
         .padding(.horizontal, 20)
@@ -248,7 +222,7 @@ struct AstraInterruptionView: View {
     private var choice: some View {
         VStack(alignment: .leading, spacing: 18) {
             AstraSectionHeading(
-                eyebrow: "Honor the pause",
+                eyebrow: nil,
                 title: action == .breakSession ? "Take a short break?" : "End this session early?",
                 detail: waitExplanation
             )
@@ -288,11 +262,11 @@ struct AstraInterruptionView: View {
 
         return VStack(alignment: .leading, spacing: 20) {
             AstraSectionHeading(
-                eyebrow: "A deliberate choice",
-                title: remaining > 0 ? "Stay with the decision." : "The pause is complete.",
+                eyebrow: nil,
+                title: remaining > 0 ? "Confirmation wait" : "Ready to confirm",
                 detail: remaining > 0
-                    ? "You can return to focus at any time. Keep this window open to finish the interruption."
-                    : "You may now confirm, or return to your session."
+                    ? "You can return to focus at any time."
+                    : nil
             )
 
             Text(timeLabel(remaining))
@@ -324,9 +298,9 @@ struct AstraInterruptionView: View {
         guard let difficulty = model.activeSession?.difficulty else { return "" }
         return switch difficulty {
         case .flexible:
-            "A six-second pause keeps the action intentional."
+            "Wait six seconds to confirm."
         case .commitment:
-            "A commitment countdown must finish before this action becomes available. Repeated interruptions take longer."
+            "The confirmation wait gets longer after each interruption."
         case .locked:
             "Locked sessions cannot be interrupted."
         }

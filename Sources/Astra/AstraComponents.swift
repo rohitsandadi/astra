@@ -177,13 +177,13 @@ struct AstraBrowserRow: View {
 
             switch permission.status {
             case .notRequested, .denied:
-                Button(permission.status == .denied ? "Try again" : "Open & allow") {
+                Button(permission.status == .denied ? "Try again" : "Allow") {
                     requestPermission()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(isBusy || !helperReady)
-                .help(helperReady ? "macOS will ask for Automation access." : "Enable Protection first.")
+                .help(helperReady ? "macOS will ask for browser access." : "Enable app blocking first.")
             case .ready:
                 Label("Ready", systemImage: "checkmark.circle.fill")
                     .labelStyle(.titleAndIcon)
@@ -196,15 +196,18 @@ struct AstraBrowserRow: View {
             }
         }
         .padding(.vertical, 8)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     private var statusDetail: String {
         if !helperReady, permission.status != .notInstalled {
-            return "Enable Protection before requesting access."
+            return "Enable app blocking first."
         }
-        if let detail = permission.detail, !detail.isEmpty { return detail }
-        return permission.status.title
+        return switch permission.status {
+        case .ready: "Ready"
+        case .notRequested, .denied: "Browser access needed"
+        case .notInstalled: "Not installed"
+        }
     }
 }
 
@@ -242,32 +245,145 @@ struct AstraBrandMark: View {
     var size: CGFloat = 32
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
-                .fill(Color.black)
-            Ellipse()
-                .trim(from: 0.05, to: 0.76)
-                .stroke(
-                    Color.white.opacity(0.94),
-                    style: StrokeStyle(lineWidth: max(1.5, size * 0.105), lineCap: .round)
-                )
-                .frame(width: size * 0.61, height: size * 0.53)
-                .rotationEffect(.degrees(-29))
-                .offset(y: size * 0.015)
-            Ellipse()
-                .trim(from: 0.34, to: 0.95)
-                .stroke(
-                    Color.astraAccent,
-                    style: StrokeStyle(lineWidth: max(1, size * 0.055), lineCap: .round)
-                )
-                .frame(width: size * 0.59, height: size * 0.49)
-                .rotationEffect(.degrees(151))
-        }
+        Image(nsImage: appIcon)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
         .frame(width: size, height: size)
-        .overlay {
-            RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
-                .stroke(Color.white.opacity(0.11), lineWidth: 0.75)
-        }
         .accessibilityHidden(true)
+    }
+
+    private var appIcon: NSImage {
+        if let url = Bundle.main.url(forResource: "Astra", withExtension: "icns"),
+           let image = NSImage(contentsOf: url) {
+            return image
+        }
+        return NSApplication.shared.applicationIconImage
+    }
+}
+
+struct AstraFloatingNavigation: View {
+    @Binding var selection: AstraDestination
+
+    var body: some View {
+        HStack(spacing: AstraMetrics.space1) {
+            ForEach(AstraDestination.allCases) { destination in
+                Button {
+                    selection = destination
+                } label: {
+                    Image(systemName: destination.systemImage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(selection == destination ? Color.astraAccent : .secondary)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            selection == destination ? Color.astraAccent.opacity(0.16) : Color.clear,
+                            in: Circle()
+                        )
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(destination.title)
+                .accessibilityLabel(destination.title)
+                .accessibilityAddTraits(selection == destination ? .isSelected : [])
+            }
+        }
+        .astraGlassChrome(cornerRadius: AstraMetrics.floatingCornerRadius, padding: AstraMetrics.space1)
+    }
+}
+
+struct AstraRoutineRow: View {
+    var preset: AstraPreset
+    var actionTitle: String = "Start"
+    var actionSystemImage: String = "play.fill"
+    var action: () -> Void
+    var edit: (() -> Void)?
+    var delete: (() -> Void)?
+
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: AstraMetrics.space2) {
+            Button(action: action) {
+                HStack(spacing: AstraMetrics.space3) {
+                    Image(systemName: preset.difficulty.systemImage)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.astraAccent)
+                        .frame(width: 36, height: 36)
+                        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(preset.durationLabel)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text(preset.routineSummary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: AstraMetrics.space3)
+
+                    targetIcons
+
+                    Label(actionTitle, systemImage: actionSystemImage)
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.astraAccent)
+                        .padding(.leading, AstraMetrics.space2)
+                }
+                .padding(.horizontal, AstraMetrics.space2)
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
+                .background(
+                    Color.white.opacity(isHovering ? 0.055 : 0),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+            }
+            .buttonStyle(.plain)
+            .onHover { isHovering = $0 }
+            .accessibilityLabel(preset.routineAccessibilityLabel)
+            .accessibilityHint("\(actionTitle) this routine")
+
+            if edit != nil || delete != nil {
+                Menu {
+                    if let edit {
+                        Button("Edit", systemImage: "pencil", action: edit)
+                    }
+                    if let delete {
+                        Divider()
+                        Button("Delete", systemImage: "trash", role: .destructive, action: delete)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .accessibilityLabel("Actions for \(preset.routineAccessibilityLabel)")
+                .padding(.trailing, AstraMetrics.space2)
+            }
+        }
+        .frame(minHeight: 58)
+    }
+
+    @ViewBuilder
+    private var targetIcons: some View {
+        if !preset.applications.isEmpty {
+            HStack(spacing: -5) {
+                ForEach(Array(preset.applications.prefix(3))) { application in
+                    AstraAppIcon(application: application, size: 22)
+                        .padding(2)
+                        .background(Color.astraCanvas, in: RoundedRectangle(cornerRadius: 6))
+                }
+            }
+            .accessibilityHidden(true)
+        } else if !preset.domains.isEmpty {
+            Image(systemName: "globe")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 26)
+                .accessibilityHidden(true)
+        }
     }
 }

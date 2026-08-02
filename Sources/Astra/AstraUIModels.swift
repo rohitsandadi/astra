@@ -11,7 +11,7 @@ enum AstraDestination: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .focus: "Focus"
+        case .focus: "Home"
         case .presets: "Routines"
         case .settings: "Settings"
         }
@@ -19,8 +19,8 @@ enum AstraDestination: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .focus: "circle.dashed"
-        case .presets: "square.stack.3d.up"
+        case .focus: "house"
+        case .presets: "list.bullet"
         case .settings: "gearshape"
         }
     }
@@ -42,11 +42,11 @@ extension Difficulty {
     var detail: String {
         switch self {
         case .flexible:
-            "Pause for six seconds before taking a break or ending early."
+            "A short pause before breaks or ending early."
         case .commitment:
-            "Interruptions become progressively slower: 30 seconds, 1, 2, then 4 minutes."
+            "Each interruption takes longer to confirm."
         case .locked:
-            "No breaks and no early ending after your final confirmation."
+            "No breaks or early ending."
         }
     }
 }
@@ -103,6 +103,29 @@ extension FocusPreset {
     var durationMinutes: Int {
         get { defaultDurationSeconds / 60 }
         set { defaultDurationSeconds = newValue * 60 }
+    }
+
+    var durationLabel: String {
+        if durationMinutes < 60 { return "\(durationMinutes) min" }
+        let hours = durationMinutes / 60
+        let minutes = durationMinutes % 60
+        return minutes == 0 ? "\(hours) hr" : "\(hours) hr \(minutes) min"
+    }
+
+    var targetSummary: String {
+        if applications.isEmpty, domains.isEmpty { return "Timer only" }
+        let apps = "\(applications.count) \(applications.count == 1 ? "app" : "apps")"
+        let websites = "\(domains.count) \(domains.count == 1 ? "website" : "websites")"
+        return "\(apps) · \(websites)"
+    }
+
+    var routineSummary: String {
+        "\(targetSummary) · \(difficulty.title)"
+    }
+
+    var routineAccessibilityLabel: String {
+        let duration = "\(durationMinutes) \(durationMinutes == 1 ? "minute" : "minutes")"
+        return "\(duration), \(targetSummary), \(difficulty.title) difficulty"
     }
 }
 

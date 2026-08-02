@@ -1,7 +1,7 @@
 # Astra
 
 Astra is a local-first, open-source focus blocker for macOS. It provides timed
-focus sessions, reusable app and website presets, three interruption
+focus sessions, reusable app and website routines, three interruption
 difficulties, and native browser automation for Safari, Google Chrome, and Dia.
 
 ## What is included
@@ -13,7 +13,7 @@ difficulties, and native browser automation for Safari, Google Chrome, and Dia.
 - App blocking through a per-user background helper.
 - Domain and subdomain blocking in the foreground tab of Safari, Chrome, and Dia.
 - Flexible, Commitment, and Locked focus sessions, including 1–15 minute breaks.
-- Local-only presets and active-session state. There are no accounts, analytics,
+- Local-only routines and active-session state. There are no accounts, analytics,
   telemetry, or cloud services.
 
 ## Build and test

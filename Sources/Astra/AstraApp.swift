@@ -19,22 +19,27 @@ struct AstraApp: App {
                     .frame(width: 0, height: 0)
                     .allowsHitTesting(false)
             }
-            .frame(minWidth: 840, minHeight: 620)
+            .frame(minWidth: 760, minHeight: 560)
             .preferredColorScheme(.dark)
         }
-        .defaultSize(width: 1080, height: 740)
+        .defaultSize(width: 960, height: 680)
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(after: .newItem) {
-                Button("New Focus Session") {
+                Button("Home") {
                     model.selectedDestination = .focus
                 }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
+                .keyboardShortcut("1", modifiers: .command)
 
-                Button("Presets") {
+                Button("Routines") {
                     model.selectedDestination = .presets
                 }
-                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .keyboardShortcut("2", modifiers: .command)
+
+                Button("Settings") {
+                    model.selectedDestination = .settings
+                }
+                .keyboardShortcut("3", modifiers: .command)
             }
         }
 
@@ -120,7 +125,7 @@ struct AstraMenuBarView: View {
                 AstraBrandMark(size: 26)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Astra").font(.headline)
-                    Text(model.activeSession == nil ? "Ready to focus" : "Boundary active")
+                    Text(model.activeSession == nil ? "No active routine" : "Focus active")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -132,7 +137,7 @@ struct AstraMenuBarView: View {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     VStack(alignment: .leading, spacing: 9) {
                         HStack {
-                            Text(session.preset.name)
+                            Text("Focus")
                                 .font(.body.weight(.medium))
                             Spacer()
                             Text(format(session.remaining(at: context.date)))
@@ -152,18 +157,17 @@ struct AstraMenuBarView: View {
                 .astraPrimaryButton()
             } else {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(model.selectedPreset?.name ?? "Focus")
+                    Text(model.selectedPreset?.durationLabel ?? "Routine")
                         .font(.body.weight(.medium))
-                    Text("\(model.durationMinutes) minutes · \(model.difficulty.title)")
+                    Text(model.selectedPreset?.routineSummary ?? "Create a routine to begin")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Button("Review & begin") {
+                Button("Start Routine") {
                     showMainWindow(destination: .focus)
                 }
                 .astraPrimaryButton()
-                .disabled(!model.canStartFocus || model.isBusy)
             }
 
             Divider()

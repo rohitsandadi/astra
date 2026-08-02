@@ -10,16 +10,16 @@ Astra supports Apple silicon and Intel Macs running macOS 15 or newer.
    the first launch.
 5. Open **System Settings → Privacy & Security**, choose **Open Anyway**, and
    confirm that you want to run Astra.
-6. Follow Astra's onboarding to enable **Background Protection**. If macOS says
+6. Follow Astra's setup to enable **App blocking**. If macOS says
    approval is required, allow Astra under **General → Login Items & Extensions**.
-7. Click **Open & allow** for every installed supported browser. Astra quietly
+7. Click **Allow** for every installed supported browser. Astra quietly
    opens a closed browser, then macOS presents its Automation consent prompt.
 
-Astra must remain in Applications for Background Protection to register. It
+Astra must remain in Applications for app blocking to register. It
 will not label a timer as protected until the helper and relevant browser
 access are ready. Because GitHub builds are ad-hoc signed rather than notarized,
 macOS may ask for Automation consent again after an update, and Astra will ask
-you to enable Background Protection again for the new build.
+you to enable app blocking again for the new build.
 
 No paid Apple developer account is required to build Astra locally. Xcode is
 free, but its license must be accepted before using the toolchain.

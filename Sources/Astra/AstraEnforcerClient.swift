@@ -133,7 +133,7 @@ final class AstraXPCEnforcerClient: AstraEnforcerClient {
             proxy.startSession(data, withReply: reply)
         }
         guard let session = snapshot.session, !session.status.isTerminal else {
-            throw AstraRemoteClientError("The helper did not return the session it started.")
+            throw AstraRemoteClientError("Astra couldn't start this routine.")
         }
         return session
     }
@@ -185,7 +185,7 @@ final class AstraXPCEnforcerClient: AstraEnforcerClient {
             return AstraEnforcementHealth(
                 helperAvailable: false,
                 browserPermissions: Self.localBrowserDefaults,
-                issues: ["The background helper did not respond."]
+                issues: ["App blocking is unavailable."]
             )
         }
     }
@@ -231,7 +231,7 @@ final class AstraXPCEnforcerClient: AstraEnforcerClient {
             guard let proxy = connection.remoteObjectProxyWithErrorHandler(errorHandler)
                 as? AstraEnforcerXPCProtocol else {
                 connection.invalidate()
-                replyBox.resume(throwing: AstraRemoteClientError("The Astra helper is unavailable."))
+                replyBox.resume(throwing: AstraRemoteClientError("App blocking is unavailable."))
                 return
             }
 
@@ -344,15 +344,15 @@ final class AstraResilientEnforcerClient: AstraEnforcerClient {
             return session
         case .notRegistered:
             throw AstraRemoteClientError(
-                "Enable Astra's background helper in Settings before starting an enforced session."
+                "Enable app blocking in Settings before starting this routine."
             )
         case .requiresApproval:
             throw AstraRemoteClientError(
-                "Approve Astra under System Settings → General → Login Items & Extensions before starting a session."
+                "Allow Astra under System Settings → General → Login Items & Extensions before starting this routine."
             )
         case .requiresInstall:
             throw AstraRemoteClientError(
-                "Move Astra.app to Applications and reopen it before starting an enforced session."
+                "Move Astra to Applications and reopen it before starting this routine."
             )
         }
     }

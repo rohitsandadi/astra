@@ -2,23 +2,32 @@ import SwiftUI
 
 struct AstraRootView: View {
     @ObservedObject var model: AstraAppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-                .navigationSplitViewColumnWidth(min: 188, ideal: 214, max: 244)
-        } detail: {
-            ZStack {
-                AstraWindowBackground()
+        ZStack {
+            AstraWindowBackground()
+
+            VStack(spacing: 0) {
+                topBar
                 destination
                     .id(model.selectedDestination)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.bottom, model.activeSession == nil ? AstraMetrics.navigationClearance : 0)
+            }
+
+            if model.activeSession == nil {
+                AstraFloatingNavigation(selection: $model.selectedDestination)
+                    .padding(AstraMetrics.space4)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.92).combined(with: .opacity))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
         }
-        .navigationSplitViewStyle(.balanced)
         .tint(.astraAccent)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: model.selectedDestination)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: model.activeSession?.id)
         .sheet(isPresented: $model.showsOnboarding) {
             AstraOnboardingView(model: model)
-                .interactiveDismissDisabled()
         }
         .alert(
             "Astra needs your attention",
@@ -40,80 +49,29 @@ struct AstraRootView: View {
         }
     }
 
-    private var sidebar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 11) {
-                AstraBrandMark(size: 34)
-                Text("Astra")
-                    .font(.headline.weight(.semibold))
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 16)
-
-            List(selection: $model.selectedDestination) {
-                Section {
-                    ForEach(AstraDestination.allCases) { destination in
-                        Label(destination.title, systemImage: destination.systemImage)
-                            .tag(destination)
-                            .padding(.vertical, 2)
-                    }
+    private var topBar: some View {
+        HStack(spacing: AstraMetrics.space2) {
+            AstraBrandMark(size: 30)
+            Text("Astra")
+                .font(.headline.weight(.semibold))
+            Spacer()
+            if model.activeSession != nil, model.selectedDestination != .focus {
+                Button("Back to Focus", systemImage: "timer") {
+                    model.selectedDestination = .focus
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-
-            VStack(spacing: 10) {
-                if let session = model.activeSession {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        VStack(alignment: .leading, spacing: 7) {
-                            HStack {
-                                Label("Focus active", systemImage: "circle.fill")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(Color.astraAccent)
-                                Spacer()
-                                Text(shortTime(session.remaining(at: context.date)))
-                                    .font(.caption.monospacedDigit().weight(.medium))
-                            }
-                            ProgressView(value: session.progress(at: context.date))
-                                .progressViewStyle(.linear)
-                                .tint(.astraAccent)
-                            Text(session.preset.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                } else {
-                    Button {
-                        model.selectedDestination = .settings
-                    } label: {
-                        HStack(spacing: 9) {
-                            Image(systemName: model.selectionIsReady ? "checkmark.shield.fill" : "shield.lefthalf.filled")
-                                .foregroundStyle(model.selectionIsReady ? Color.astraAccent : .secondary)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(model.readinessTitle)
-                                    .font(.caption.weight(.semibold))
-                                Text(model.selectionIsReady ? "Astra can hold this focus." : "Review protection setup.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(12)
-            .background(Color.black.opacity(0.2))
-            .overlay(alignment: .top) { Divider() }
         }
-        .background(.ultraThinMaterial)
+        .padding(.leading, 78)
+        .padding(.trailing, AstraMetrics.space6)
+        .frame(height: AstraMetrics.topBarHeight)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.07))
+                .frame(height: 1)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -130,12 +88,5 @@ struct AstraRootView: View {
         case .settings:
             AstraSettingsView(model: model)
         }
-    }
-
-    private func shortTime(_ interval: TimeInterval) -> String {
-        let seconds = max(0, Int(interval.rounded(.up)))
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
     }
 }

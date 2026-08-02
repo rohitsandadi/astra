@@ -22,15 +22,15 @@ enum AstraAgentRegistrationStatus: String, Equatable {
     var detail: String {
         switch self {
         case .enabled:
-            "Astra can keep a focus session active when the main window is closed."
+            "App blocking is ready."
         case .notRegistered:
-            "Enable the background helper before starting enforced sessions."
+            "Enable app blocking before starting a routine."
         case .requiresApproval:
             "Allow Astra in System Settings under General → Login Items & Extensions."
         case .requiresInstall:
-            "Move Astra.app to Applications and reopen it before enabling Protection."
+            "Move Astra to Applications and reopen it."
         case .unavailable:
-            "Astra could not find its bundled background helper. Reinstall the app before starting enforced sessions."
+            "App blocking is unavailable in this copy of Astra. Reinstall the app and try again."
         }
     }
 }
@@ -125,9 +125,9 @@ final class AstraAgentRegistrationService: ObservableObject {
         do {
             try await service.unregister()
             UserDefaults.standard.removeObject(forKey: Self.registrationVersionKey)
-            errorMessage = "Astra was updated. Enable Protection again for this build."
+            errorMessage = "Astra was updated. Enable app blocking again."
         } catch {
-            errorMessage = "Protection could not be updated: \(error.localizedDescription)"
+            errorMessage = "App blocking could not be updated: \(error.localizedDescription)"
         }
         refresh()
     }
@@ -140,7 +140,7 @@ final class AstraAgentRegistrationService: ObservableObject {
             try await service.unregister()
             UserDefaults.standard.removeObject(forKey: Self.registrationVersionKey)
         } catch {
-            errorMessage = "Protection could not be disabled: \(error.localizedDescription)"
+            errorMessage = "App blocking could not be disabled: \(error.localizedDescription)"
         }
         refresh()
     }

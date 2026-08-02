@@ -6,91 +6,144 @@ struct AstraPresetEditorView: View {
     var save: (AstraPreset) -> Void
 
     init(preset: AstraPreset, save: @escaping (AstraPreset) -> Void) {
-        _draft = State(initialValue: preset)
+        var initialDraft = preset
+        initialDraft.name = Self.internalName(for: preset.id)
+        _draft = State(initialValue: initialDraft)
         self.save = save
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 13) {
-                AstraBrandMark(size: 38)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Edit routine")
-                        .font(.title2.weight(.semibold))
-                    Text("Changes apply to future sessions.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            HStack {
+                Text("Routine")
+                    .font(.title2.weight(.semibold))
+
                 Spacer()
-                Text("\(draft.applications.count + draft.domains.count) targets")
-                    .font(.caption.weight(.medium))
+
+                Text(targetSummary)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityLabel("Selected targets: \(targetSummary)")
             }
-            .padding(22)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
 
             Divider()
 
-            VStack(spacing: 18) {
-                HStack(alignment: .bottom, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text("Name").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        TextField("Routine name", text: $draft.name)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                    .frame(maxWidth: .infinity)
+            VStack(spacing: 16) {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Duration")
+                                .font(.body.weight(.medium))
+                            Spacer()
+                            Stepper(
+                                durationLabel,
+                                value: $draft.durationMinutes,
+                                in: 5...1440,
+                                step: 5
+                            )
+                            .fixedSize()
+                            .accessibilityLabel("Duration")
+                            .accessibilityValue(durationLabel)
+                        }
 
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text("Duration").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Stepper(
-                            "\(draft.durationMinutes) min",
-                            value: $draft.durationMinutes,
-                            in: 5...1440,
-                            step: 5
-                        )
-                        .fixedSize()
-                    }
-
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text("Difficulty").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Picker("Difficulty", selection: $draft.difficulty) {
-                            ForEach(AstraDifficulty.allCases, id: \.self) { difficulty in
-                                Text(difficulty.title).tag(difficulty)
+                        HStack(spacing: 7) {
+                            ForEach([25, 45, 60, 90], id: \.self) { minutes in
+                                AstraChoicePill(
+                                    title: "\(minutes)",
+                                    isSelected: draft.durationMinutes == minutes
+                                ) {
+                                    draft.durationMinutes = minutes
+                                }
+                                .accessibilityLabel("\(minutes) minutes")
                             }
                         }
-                        .labelsHidden()
-                        .frame(width: 150)
                     }
+                    .padding(14)
+
+                    Divider().padding(.horizontal, 14)
+
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack(spacing: 16) {
+                            Text("Difficulty")
+                                .font(.body.weight(.medium))
+                            Spacer()
+                            Picker("Difficulty", selection: $draft.difficulty) {
+                                ForEach(AstraDifficulty.allCases, id: \.self) { difficulty in
+                                    Text(difficulty.title).tag(difficulty)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(width: 330)
+                            .accessibilityLabel("Difficulty")
+                        }
+
+                        Text(draft.difficulty.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
                 }
-                .padding(14)
                 .background(Color.white.opacity(0.032), in: RoundedRectangle(cornerRadius: 12))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.075), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.075), lineWidth: 1)
                 }
 
                 AstraTargetPickerView(draft: $draft)
             }
-            .padding(20)
+            .padding(18)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
 
-            HStack {
-                Text("Everything here stays on this Mac.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
                 Spacer()
+
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Save routine") { save(draft) }
+
+                Button("Save") { saveDraft() }
                     .keyboardShortcut(.defaultAction)
                     .astraPrimaryButton()
-                    .disabled(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            .padding(18)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
             .background(.ultraThinMaterial)
         }
-        .frame(width: 780, height: 700)
+        .frame(
+            minWidth: 600,
+            idealWidth: 680,
+            maxWidth: 760,
+            minHeight: 500,
+            idealHeight: 590,
+            maxHeight: 700
+        )
         .background(AstraWindowBackground())
         .preferredColorScheme(.dark)
+    }
+
+    private var targetSummary: String {
+        "\(draft.applications.count) apps · \(draft.domains.count) websites"
+    }
+
+    private var durationLabel: String {
+        let minutes = draft.durationMinutes
+        guard minutes >= 60 else { return "\(minutes) min" }
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        return remainder == 0 ? "\(hours) hr" : "\(hours) hr \(remainder) min"
+    }
+
+    private func saveDraft() {
+        var savedDraft = draft
+        savedDraft.name = Self.internalName(for: draft.id)
+        save(savedDraft)
+    }
+
+    private static func internalName(for id: UUID) -> String {
+        "Routine \(id.uuidString.lowercased())"
     }
 }

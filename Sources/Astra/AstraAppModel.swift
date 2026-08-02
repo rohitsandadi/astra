@@ -9,7 +9,6 @@ final class AstraAppModel: ObservableObject {
     @Published var selectedDestination: AstraDestination = .focus
     @Published private(set) var presets: [AstraPreset]
     @Published var selectedPresetID: UUID?
-    @Published var intention = ""
     @Published var durationMinutes = 45
     @Published var difficulty: AstraDifficulty = .commitment
     @Published private(set) var activeSession: AstraFocusSession?
@@ -79,6 +78,7 @@ final class AstraAppModel: ObservableObject {
 
     var canStartFocus: Bool {
         activeSession == nil
+            && !isBusy
             && selectedPreset != nil
             && durationMinutes >= 5
             && selectionIsReady
@@ -95,10 +95,10 @@ final class AstraAppModel: ObservableObject {
         guard durationMinutes >= 5 else { return "Choose at least five minutes." }
         guard selectionRequiresProtection else { return nil }
         guard health.helperAvailable else {
-            return "Enable Protection before Astra can block selected apps and websites."
+            return "Set up app blocking before starting this routine."
         }
         if !selectedPreset.domains.isEmpty && !health.allInstalledBrowsersReady {
-            return "Allow every installed supported browser so selected websites have no easy escape."
+            return "Allow browser access before starting this routine."
         }
         return nil
     }
@@ -122,7 +122,7 @@ final class AstraAppModel: ObservableObject {
         if !selectionRequiresProtection { return "Timer ready" }
         if !health.helperAvailable { return "Setup needed" }
         if browserVerificationNeeded { return "Browser check needed" }
-        return "Protection ready"
+        return "Blocking ready"
     }
 
     var selectionIsReady: Bool {
@@ -186,7 +186,7 @@ final class AstraAppModel: ObservableObject {
 
     func deletePreset(_ preset: AstraPreset) {
         guard presets.count > 1 else {
-            alertMessage = "Astra keeps at least one preset so a focus session is always close at hand."
+            alertMessage = "Astra keeps at least one routine."
             return
         }
         presets.removeAll(where: { $0.id == preset.id })
@@ -197,7 +197,7 @@ final class AstraAppModel: ObservableObject {
     }
 
     func startFocus() async {
-        guard let preset = selectedPreset, canStartFocus else { return }
+        guard !isBusy, let preset = selectedPreset, canStartFocus else { return }
         isBusy = true
         defer { isBusy = false }
 
@@ -205,7 +205,7 @@ final class AstraAppModel: ObservableObject {
             activeSession = try await client.startSession(
                 AstraFocusRequest(
                     preset: preset,
-                    intention: intention.trimmingCharacters(in: .whitespacesAndNewlines),
+                    intention: "",
                     durationMinutes: durationMinutes,
                     difficulty: difficulty
                 )
@@ -258,7 +258,7 @@ final class AstraAppModel: ObservableObject {
 
     func requestPermission(for browser: AstraBrowser) async {
         guard AstraAgentRegistrationService.shared.status == .enabled else {
-            alertMessage = "Enable Astra Protection before requesting browser access."
+            alertMessage = "Enable app blocking before allowing browser access."
             return
         }
         isBusy = true
@@ -267,9 +267,7 @@ final class AstraAppModel: ObservableObject {
         apply(await client.permissionHealth())
         isBusy = false
         if status != .ready, status != .notInstalled {
-            let detail = health.browserPermissions.first(where: { $0.browser == browser })?.detail
-            alertMessage = detail
-                ?? "macOS did not grant Automation access to \(browser.displayName). Try again or review Privacy & Security → Automation in System Settings."
+            alertMessage = "macOS did not allow access to \(browser.displayName). Try again or review Privacy & Security → Automation in System Settings."
         }
     }
 
@@ -282,7 +280,7 @@ final class AstraAppModel: ObservableObject {
             try? await Task.sleep(for: .milliseconds(250))
         }
         if AstraAgentRegistrationService.shared.status == .enabled {
-            alertMessage = "Protection is enabled, but its background helper did not respond. Reopen Astra from Applications and try again."
+            alertMessage = "App blocking isn't responding. Reopen Astra from Applications and try again."
         }
     }
 
@@ -320,7 +318,7 @@ final class AstraAppModel: ObservableObject {
 
     func completeOnboarding() {
         guard setupCanComplete else {
-            alertMessage = "Finish Protection setup and allow every installed Safari, Chrome, and Dia browser before continuing."
+            alertMessage = "Enable app blocking and allow each installed browser before continuing."
             return
         }
         showsOnboarding = false
@@ -329,6 +327,10 @@ final class AstraAppModel: ObservableObject {
 
     func reopenOnboarding() {
         showsOnboarding = true
+    }
+
+    func dismissOnboarding() {
+        showsOnboarding = false
     }
 
     func show(_ error: Error) {

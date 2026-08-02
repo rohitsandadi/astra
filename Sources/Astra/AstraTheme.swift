@@ -22,14 +22,24 @@ extension Color {
 }
 
 enum AstraMetrics {
-    static let compactSpacing: CGFloat = 6
-    static let controlSpacing: CGFloat = 10
-    static let sectionSpacing: CGFloat = 16
-    static let pageSpacing: CGFloat = 24
+    static let space1: CGFloat = 4
+    static let space2: CGFloat = 8
+    static let space3: CGFloat = 12
+    static let space4: CGFloat = 16
+    static let space6: CGFloat = 24
+    static let space8: CGFloat = 32
+
+    static let compactSpacing = space2
+    static let controlSpacing = space3
+    static let sectionSpacing = space4
+    static let pageSpacing = space6
     static let cornerRadius: CGFloat = 16
     static let compactCornerRadius: CGFloat = 12
-    static let floatingCornerRadius: CGFloat = 20
-    static let pagePadding: CGFloat = 28
+    static let floatingCornerRadius: CGFloat = 18
+    static let pagePadding = space6
+    static let contentWidth: CGFloat = 820
+    static let topBarHeight: CGFloat = 54
+    static let navigationClearance: CGFloat = 68
 }
 
 /// A quiet content-layer surface. Liquid Glass belongs to navigation and
@@ -130,8 +140,10 @@ extension View {
     func astraSecondaryButton() -> some View {
         if #available(macOS 26.0, *) {
             buttonStyle(.glass)
+                .tint(Color.white.opacity(0.14))
         } else {
             buttonStyle(.bordered)
+                .tint(Color(nsColor: .secondaryLabelColor))
         }
     }
 }
@@ -141,13 +153,16 @@ struct AstraWindowBackground: View {
 
     var body: some View {
         ZStack {
-            Color.astraCanvas
-            if !reduceTransparency {
+            if reduceTransparency {
+                Color.astraCanvas
+            } else {
+                AstraVisualEffectBackground()
+                Color.black.opacity(0.78)
                 LinearGradient(
                     colors: [
-                        Color.white.opacity(0.025),
+                        Color.white.opacity(0.035),
                         Color.clear,
-                        Color.astraAccent.opacity(0.025)
+                        Color.astraAccent.opacity(0.035)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -155,6 +170,23 @@ struct AstraWindowBackground: View {
             }
         }
         .ignoresSafeArea()
+    }
+}
+
+/// One window-level material keeps Astra translucent without stacking blur on
+/// every row and card. The active state preserves the same contrast when the
+/// window is not key.
+private struct AstraVisualEffectBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.state = .active
     }
 }
 

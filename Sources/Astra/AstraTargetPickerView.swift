@@ -6,28 +6,31 @@ struct AstraTargetPickerView: View {
     @Binding var draft: AstraPreset
     @StateObject private var catalog = AstraApplicationCatalog()
     @State private var section: TargetSection = .apps
-    @State private var search = ""
+    @State private var appSearch = ""
+    @State private var websiteSearch = ""
     @State private var domainEntry = ""
-    @State private var domainError: String?
+    @State private var targetError: String?
     @State private var showsFileImporter = false
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             HStack {
-                Picker("Targets", selection: $section) {
+                Picker("Target type", selection: $section) {
                     ForEach(TargetSection.allCases) { section in
                         Label(section.title, systemImage: section.systemImage).tag(section)
                     }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(maxWidth: 360)
+                .frame(maxWidth: 320)
+                .accessibilityLabel("Choose apps or websites")
 
                 Spacer()
 
                 Text(summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityLabel("Selected targets: \(summary)")
             }
 
             Group {
@@ -46,54 +49,57 @@ struct AstraTargetPickerView: View {
             onCompletion: handleAppSelection
         )
         .alert(
-            "That target could not be added",
+            "Couldn't add target",
             isPresented: Binding(
-                get: { domainError != nil },
-                set: { if !$0 { domainError = nil } }
+                get: { targetError != nil },
+                set: { if !$0 { targetError = nil } }
             )
         ) {
-            Button("OK") { domainError = nil }
+            Button("OK") { targetError = nil }
         } message: {
-            Text(domainError ?? "")
+            Text(targetError ?? "")
         }
     }
 
     private var apps: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 9) {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
                 HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Search installed apps", text: $search)
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+
+                    TextField("Search apps", text: $appSearch)
                         .textFieldStyle(.plain)
+                        .accessibilityLabel("Search apps")
                 }
                 .padding(.horizontal, 11)
                 .padding(.vertical, 8)
                 .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 }
 
-                Button("Choose Other…") { showsFileImporter = true }
+                Button("Choose App…") { showsFileImporter = true }
                     .buttonStyle(.bordered)
+                    .accessibilityHint("Choose an app that isn't listed")
             }
 
             if catalog.isLoading {
-                VStack(spacing: 10) {
-                    ProgressView()
-                    Text("Finding apps on this Mac…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if filteredApplications.isEmpty {
-                ContentUnavailableView.search(text: search)
+                ProgressView("Loading apps…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if visibleApplications.isEmpty {
+                ContentUnavailableView.search(text: appSearch)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(filteredApplications.prefix(100)) { application in
+                        ForEach(visibleApplications) { application in
                             applicationRow(application)
-                            if application.id != filteredApplications.prefix(100).last?.id {
+                            if application.id != visibleApplications.last?.id {
                                 Divider().padding(.leading, 49)
                             }
                         }
@@ -101,7 +107,8 @@ struct AstraTargetPickerView: View {
                 }
                 .background(Color.white.opacity(0.028), in: RoundedRectangle(cornerRadius: 12))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.075), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.075), lineWidth: 1)
                 }
             }
         }
@@ -121,83 +128,92 @@ struct AstraTargetPickerView: View {
         } label: {
             HStack(spacing: 12) {
                 AstraAppIcon(application: blocked, size: 28)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(application.displayName)
-                        .foregroundStyle(.primary)
-                    Text(application.bundleIdentifier)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+
+                Text(application.displayName)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
                 Spacer()
+
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.body.weight(.medium))
                     .foregroundStyle(isSelected ? Color.astraAccent : .secondary)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityLabel(application.displayName)
+        .accessibilityValue(isSelected ? "Blocked" : "Allowed")
+        .accessibilityHint(isSelected ? "Remove from this routine" : "Add to this routine")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var websites: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Add a website")
-                    .font(.headline)
-                HStack(spacing: 9) {
-                    TextField("Paste a URL or type a domain", text: $domainEntry)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit(addDomain)
-                    Button("Add") { addDomain() }
-                        .buttonStyle(.bordered)
-                        .disabled(domainEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                Text("Astra stores only the domain and includes its subdomains. Paths are discarded.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                TextField("Website address", text: $domainEntry)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(addDomain)
+                    .accessibilityLabel("Website address")
+
+                Button("Add") { addDomain() }
+                    .buttonStyle(.bordered)
+                    .disabled(domainEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityHint("Add this website to the routine")
             }
 
             HStack {
-                Text("Common pulls")
-                    .font(.headline)
+                Text("Suggestions")
+                    .font(.callout.weight(.semibold))
+
                 Spacer()
-                TextField("Filter suggestions", text: $search)
+
+                TextField("Search", text: $websiteSearch)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 190)
+                    .frame(maxWidth: 190)
+                    .accessibilityLabel("Search website suggestions")
             }
 
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(filteredWebsiteSuggestions) { suggestion in
-                        websiteRow(suggestion)
-                        if suggestion.id != filteredWebsiteSuggestions.last?.id {
-                            Divider().padding(.leading, 42)
+            if filteredWebsiteSuggestions.isEmpty {
+                ContentUnavailableView.search(text: websiteSearch)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredWebsiteSuggestions) { suggestion in
+                            websiteRow(suggestion)
+                            if suggestion.id != filteredWebsiteSuggestions.last?.id {
+                                Divider().padding(.leading, 42)
+                            }
                         }
                     }
                 }
-            }
-            .frame(minHeight: 140, maxHeight: 210)
-            .background(Color.white.opacity(0.028), in: RoundedRectangle(cornerRadius: 12))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.075), lineWidth: 1)
+                .frame(minHeight: 120)
+                .background(Color.white.opacity(0.028), in: RoundedRectangle(cornerRadius: 12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.075), lineWidth: 1)
+                }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Selected websites")
-                    .font(.headline)
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Blocked websites")
+                    .font(.callout.weight(.semibold))
+
                 if draft.domains.isEmpty {
-                    Label("No websites selected", systemImage: "globe")
+                    Text("None selected")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 54)
-                        .background(Color.white.opacity(0.025), in: RoundedRectangle(cornerRadius: 10))
+                        .padding(.vertical, 6)
                 } else {
                     FlowLayout(spacing: 7) {
                         ForEach(draft.domains, id: \.self) { domain in
                             HStack(spacing: 6) {
                                 Text(domain)
+
                                 Button {
                                     draft.domains.removeAll(where: { $0 == domain })
                                 } label: {
@@ -233,32 +249,44 @@ struct AstraTargetPickerView: View {
                 Image(systemName: suggestion.systemImage)
                     .foregroundStyle(isSelected ? Color.astraAccent : .secondary)
                     .frame(width: 26)
+                    .accessibilityHidden(true)
+
                 VStack(alignment: .leading, spacing: 1) {
                     Text(suggestion.name).foregroundStyle(.primary)
                     Text(suggestion.domain).font(.caption).foregroundStyle(.secondary)
                 }
+
                 Spacer()
+
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isSelected ? Color.astraAccent : .secondary)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(suggestion.name), \(suggestion.domain)")
+        .accessibilityValue(isSelected ? "Blocked" : "Allowed")
+        .accessibilityHint(isSelected ? "Remove from this routine" : "Add to this routine")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var filteredApplications: [AstraCatalogApplication] {
-        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = appSearch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return catalog.applications }
         return catalog.applications.filter {
             $0.displayName.localizedCaseInsensitiveContains(query)
-                || $0.bundleIdentifier.localizedCaseInsensitiveContains(query)
         }
     }
 
+    private var visibleApplications: [AstraCatalogApplication] {
+        Array(filteredApplications.prefix(100))
+    }
+
     private var filteredWebsiteSuggestions: [WebsiteSuggestion] {
-        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = websiteSearch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return WebsiteSuggestion.defaults }
         return WebsiteSuggestion.defaults.filter {
             $0.name.localizedCaseInsensitiveContains(query)
@@ -292,7 +320,7 @@ struct AstraTargetPickerView: View {
             }
             domainEntry = ""
         } catch {
-            domainError = error.localizedDescription
+            targetError = error.localizedDescription
         }
     }
 
@@ -304,7 +332,7 @@ struct AstraTargetPickerView: View {
                 guard let bundle = Bundle(url: url), let identifier = bundle.bundleIdentifier else { continue }
                 guard !AstraProtectedApplications.bundleIdentifiers.contains(identifier),
                       identifier != Bundle.main.bundleIdentifier else {
-                    domainError = "Astra cannot block itself or a critical macOS process."
+                    targetError = "That app can't be blocked."
                     continue
                 }
                 guard !draft.applications.contains(where: { $0.bundleIdentifier == identifier }) else { continue }
@@ -319,7 +347,7 @@ struct AstraTargetPickerView: View {
                 $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
         } catch {
-            domainError = "The selected apps could not be read: \(error.localizedDescription)"
+            targetError = "Astra couldn't add the selected apps."
         }
     }
 }

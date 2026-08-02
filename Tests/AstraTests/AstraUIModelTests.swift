@@ -126,6 +126,61 @@ final class AstraUIModelTests: XCTestCase {
         XCTAssertTrue(model.selectionIsReady)
     }
 
+    @MainActor
+    func testStartingRoutineUsesSavedValuesAndNoHiddenTitle() async {
+        let (defaults, suiteName) = isolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let client = CapturingEnforcerClient()
+        let model = AstraAppModel(client: client, defaults: defaults)
+        let routine = AstraPreset(
+            name: "This internal name must not become a session title",
+            durationMinutes: 25,
+            difficulty: .flexible
+        )
+
+        model.upsert(routine)
+        await model.startFocus()
+
+        XCTAssertEqual(client.lastStartRequest?.preset.id, routine.id)
+        XCTAssertEqual(client.lastStartRequest?.durationMinutes, 25)
+        XCTAssertEqual(client.lastStartRequest?.difficulty, .flexible)
+        XCTAssertEqual(client.lastStartRequest?.intention, "")
+    }
+
+    func testRoutinePresentationDoesNotDependOnStoredName() {
+        let first = AstraPreset(
+            name: "Morning",
+            domains: ["example.com"],
+            durationMinutes: 45,
+            difficulty: .commitment
+        )
+        var second = first
+        second.name = "Completely different internal value"
+
+        XCTAssertEqual(first.durationLabel, second.durationLabel)
+        XCTAssertEqual(first.routineSummary, second.routineSummary)
+        XCTAssertEqual(first.routineAccessibilityLabel, second.routineAccessibilityLabel)
+        XCTAssertFalse(first.routineSummary.contains(first.name))
+    }
+
+    @MainActor
+    func testRegistrationStatusCopyDoesNotExposeProcessInternals() {
+        let forbidden = ["helper", "xpc", "background item", "protection"]
+
+        for status in [
+            AstraAgentRegistrationStatus.enabled,
+            .notRegistered,
+            .requiresApproval,
+            .requiresInstall,
+            .unavailable
+        ] {
+            let copy = status.detail.lowercased()
+            for term in forbidden {
+                XCTAssertFalse(copy.contains(term), "Found \(term) in: \(status.detail)")
+            }
+        }
+    }
+
     private func createApplication(named name: String, identifier: String, in root: URL) throws {
         let contents = root
             .appendingPathComponent("\(name).app", isDirectory: true)
@@ -147,5 +202,51 @@ final class AstraUIModelTests: XCTestCase {
     private func isolatedDefaults() -> (UserDefaults, String) {
         let suiteName = "AstraUIModelTests.\(UUID().uuidString)"
         return (UserDefaults(suiteName: suiteName)!, suiteName)
+    }
+}
+
+@MainActor
+private final class CapturingEnforcerClient: AstraEnforcerClient {
+    private let local = AstraLocalEnforcerClient()
+    private(set) var lastStartRequest: AstraFocusRequest?
+
+    func currentSession() async throws -> AstraFocusSession? {
+        try await local.currentSession()
+    }
+
+    func startSession(_ request: AstraFocusRequest) async throws -> AstraFocusSession {
+        lastStartRequest = request
+        return try await local.startSession(request)
+    }
+
+    func beginInterruption(
+        for session: AstraFocusSession,
+        kind: AstraInterruptionKind
+    ) async throws -> AstraInterruptionChallenge {
+        try await local.beginInterruption(for: session, kind: kind)
+    }
+
+    func commitInterruption(
+        _ challenge: AstraInterruptionChallenge,
+        session: AstraFocusSession
+    ) async throws -> AstraFocusSession? {
+        try await local.commitInterruption(challenge, session: session)
+    }
+
+    func cancelInterruption(_ challenge: AstraInterruptionChallenge) async throws {
+        try await local.cancelInterruption(challenge)
+    }
+
+    func permissionHealth() async -> AstraEnforcementHealth {
+        AstraEnforcementHealth(
+            helperAvailable: true,
+            browserPermissions: AstraBrowser.allCases.map {
+                AstraBrowserPermission(browser: $0, status: .ready)
+            }
+        )
+    }
+
+    func requestAutomationPermission(for browser: AstraBrowser) async -> AstraPermissionStatus {
+        .ready
     }
 }
