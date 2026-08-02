@@ -13,7 +13,7 @@ jobs:
   test-and-package:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Prepare scripts
         run: chmod +x scripts/build-app.sh scripts/package-release.sh
       - name: Test
@@ -39,13 +39,13 @@ jobs:
         run: |
           ASTRA_VERSION="${ASTRA_VERSION#v}" ./scripts/package-release.sh
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Astra-macOS
           path: dist/Astra-macOS.zip
       - name: Upload release assets
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Astra-release-assets
           path: |
@@ -60,7 +60,7 @@ jobs:
       contents: write
     steps:
       - name: Download release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: Astra-release-assets
           path: dist
