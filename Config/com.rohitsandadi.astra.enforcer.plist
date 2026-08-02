@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.rohitsandadi.astra.enforcer</string>
+    <key>BundleProgram</key>
+    <string>Contents/MacOS/AstraEnforcer</string>
+    <key>KeepAlive</key>
+    <true/>
+    <key>MachServices</key>
+    <dict>
+        <key>com.rohitsandadi.astra.enforcer</key>
+        <true/>
+    </dict>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
