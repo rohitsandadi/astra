@@ -4,6 +4,7 @@ public enum FocusSessionEngineError: Error, Equatable, Sendable {
     case sessionAlreadyActive
     case noActiveSession
     case invalidDuration
+    case eventBeforeSessionStart
     case interruptionNotAllowed
     case breakAlreadyActive
     case invalidBreakDuration
@@ -87,6 +88,9 @@ public struct FocusSessionEngine: Sendable {
         _ = refresh(at: date)
         guard var current = session, !current.status.isTerminal else {
             throw FocusSessionEngineError.noActiveSession
+        }
+        guard date >= current.startDate else {
+            throw FocusSessionEngineError.eventBeforeSessionStart
         }
         guard current.difficulty != .locked else {
             throw FocusSessionEngineError.interruptionNotAllowed
