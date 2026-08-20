@@ -111,7 +111,7 @@ public struct FocusSessionEngine: Sendable {
             }
         }
 
-        let wait = waitDuration(
+        let wait = Self.interruptionWaitDuration(
             for: current.difficulty,
             priorRequestCount: current.interruptionRequestCount
         )
@@ -194,7 +194,10 @@ public struct FocusSessionEngine: Sendable {
         session = current
     }
 
-    private func waitDuration(for difficulty: Difficulty, priorRequestCount: Int) -> TimeInterval {
+    static func interruptionWaitDuration(
+        for difficulty: Difficulty,
+        priorRequestCount: Int
+    ) -> TimeInterval {
         switch difficulty {
         case .flexible:
             return 6

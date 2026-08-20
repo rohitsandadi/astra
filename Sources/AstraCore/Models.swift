@@ -362,11 +362,16 @@ public struct FocusSession: Identifiable, Codable, Equatable, Sendable {
         }
 
         if let pendingInterruption {
+            let expectedWait = FocusSessionEngine.interruptionWaitDuration(
+                for: difficulty,
+                priorRequestCount: interruptionRequestCount - 1
+            )
             guard interruptionRequestCount > 0,
                   difficulty != .locked,
                   pendingInterruption.requestedAt >= startDate,
                   pendingInterruption.requestedAt < endDate,
-                  pendingInterruption.availableAt >= pendingInterruption.requestedAt
+                  pendingInterruption.availableAt >= pendingInterruption.requestedAt,
+                  abs(pendingInterruption.waitDuration - expectedWait) < 0.001
             else {
                 throw FocusSessionValidationError.inconsistentChallengeState
             }
