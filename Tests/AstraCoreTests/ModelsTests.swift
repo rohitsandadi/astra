@@ -69,6 +69,21 @@ final class ModelsTests: XCTestCase {
         }
     }
 
+    func testPresetValidationRejectsUpdateBeforeCreation() {
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_100)
+        let preset = FocusPreset(
+            name: "Focus",
+            defaultDurationSeconds: 25 * 60,
+            difficulty: .commitment,
+            createdAt: createdAt,
+            updatedAt: createdAt.addingTimeInterval(-1)
+        )
+
+        XCTAssertThrowsError(try preset.validate()) { error in
+            XCTAssertEqual(error as? FocusPresetValidationError, .invalidChronology)
+        }
+    }
+
     func testWindowManagerIsProtectedCaseInsensitively() {
         let application = BlockedApplication(
             bundleIdentifier: "com.apple.WindowManager",
