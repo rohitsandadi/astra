@@ -107,6 +107,19 @@ final class FocusSessionEngineTests: XCTestCase {
         }
     }
 
+    func testInterruptionCannotPredateSessionStart() throws {
+        var engine = FocusSessionEngine()
+        _ = try engine.startSession(preset: makePreset(difficulty: .flexible), at: start)
+
+        XCTAssertThrowsError(
+            try engine.requestInterruption(.endSession, at: start.addingTimeInterval(-1))
+        ) { error in
+            XCTAssertEqual(error as? FocusSessionEngineError, .eventBeforeSessionStart)
+        }
+        XCTAssertNil(engine.session?.pendingInterruption)
+        XCTAssertEqual(engine.session?.interruptionRequestCount, 0)
+    }
+
     func testBreakDurationMustBeWholeMinutesWithinRange() throws {
         var engine = FocusSessionEngine()
         _ = try engine.startSession(preset: makePreset(difficulty: .flexible), at: start)
