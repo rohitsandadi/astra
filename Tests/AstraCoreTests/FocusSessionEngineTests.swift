@@ -107,6 +107,19 @@ final class FocusSessionEngineTests: XCTestCase {
         }
     }
 
+    func testInterruptionCannotPredateSessionStart() throws {
+        var engine = FocusSessionEngine()
+        _ = try engine.startSession(preset: makePreset(difficulty: .flexible), at: start)
+
+        XCTAssertThrowsError(
+            try engine.requestInterruption(.endSession, at: start.addingTimeInterval(-1))
+        ) { error in
+            XCTAssertEqual(error as? FocusSessionEngineError, .eventBeforeSessionStart)
+        }
+        XCTAssertNil(engine.session?.pendingInterruption)
+        XCTAssertEqual(engine.session?.interruptionRequestCount, 0)
+    }
+
     func testBreakDurationMustBeWholeMinutesWithinRange() throws {
         var engine = FocusSessionEngine()
         _ = try engine.startSession(preset: makePreset(difficulty: .flexible), at: start)
@@ -229,6 +242,109 @@ final class FocusSessionEngineTests: XCTestCase {
         XCTAssertThrowsError(try FocusSessionEngine(restoring: malformed, at: start)) { error in
             XCTAssertEqual(error as? FocusSessionValidationError, .inconsistentBreakState)
         }
+    }
+
+    func testRestoringSessionRejectsDurationOutsideSupportedRange() {
+        let preset = makePreset(difficulty: .commitment, duration: 5 * 60)
+        for duration in [5 * 60 - 1, 24 * 60 * 60 + 1] {
+            let malformed = FocusSession(
+                preset: preset,
+                startDate: start,
+                endDate: start.addingTimeInterval(TimeInterval(duration)),
+                difficulty: .commitment
+            )
+
+            XCTAssertThrowsError(try FocusSessionEngine(restoring: malformed, at: start)) { error in
+                XCTAssertEqual(error as? FocusSessionValidationError, .invalidDuration)
+            }
+        }
+    }
+
+    func testRestoringSessionRejectsImpossibleInterruptionCounters() {
+        let preset = makePreset(difficulty: .commitment, duration: 5 * 60)
+        let tooManyBreaks = FocusSession(
+            preset: preset,
+            startDate: start,
+            endDate: start.addingTimeInterval(5 * 60),
+            difficulty: .commitment,
+            breakCount: 2,
+            interruptionRequestCount: 1
+        )
+
+        XCTAssertThrowsError(try FocusSessionEngine(restoring: tooManyBreaks, at: start)) { error in
+            XCTAssertEqual(error as? FocusSessionValidationError, .invalidCounters)
+        }
+
+        let breakWithoutCount = FocusSession(
+            preset: preset,
+            startDate: start,
+            endDate: start.addingTimeInterval(5 * 60),
+            difficulty: .commitment,
+            status: .onBreak,
+            activeBreak: FocusBreak(
+                startedAt: start,
+                endsAt: start.addingTimeInterval(60),
+                requestedDurationMinutes: 1
+            ),
+            interruptionRequestCount: 1
+        )
+
+        XCTAssertThrowsError(try FocusSessionEngine(restoring: breakWithoutCount, at: start)) { error in
+            XCTAssertEqual(error as? FocusSessionValidationError, .inconsistentBreakState)
+        }
+    }
+
+    func testRestoringSessionRejectsChallengeWithoutRecordedRequest() {
+        let preset = makePreset(difficulty: .commitment, duration: 5 * 60)
+        let malformed = FocusSession(
+            preset: preset,
+            startDate: start,
+            endDate: start.addingTimeInterval(5 * 60),
+            difficulty: .commitment,
+            pendingInterruption: InterruptionChallenge(
+                kind: .endSession,
+                requestedAt: start,
+                availableAt: start.addingTimeInterval(30)
+            )
+        )
+
+        XCTAssertThrowsError(try FocusSessionEngine(restoring: malformed, at: start)) { error in
+            XCTAssertEqual(error as? FocusSessionValidationError, .inconsistentChallengeState)
+        }
+    }
+
+    func testRestoringSessionRejectsShortenedInterruptionWait() {
+        let preset = makePreset(difficulty: .commitment, duration: 5 * 60)
+        let malformed = FocusSession(
+            preset: preset,
+            startDate: start,
+            endDate: start.addingTimeInterval(5 * 60),
+            difficulty: .commitment,
+            pendingInterruption: InterruptionChallenge(
+                kind: .endSession,
+                requestedAt: start,
+                availableAt: start.addingTimeInterval(6)
+            ),
+            interruptionRequestCount: 1
+        )
+
+        XCTAssertThrowsError(try FocusSessionEngine(restoring: malformed, at: start)) { error in
+            XCTAssertEqual(error as? FocusSessionValidationError, .inconsistentChallengeState)
+        }
+    }
+
+    func testRestoringSessionAcceptsExpectedInterruptionWait() throws {
+        var source = FocusSessionEngine()
+        _ = try source.startSession(
+            preset: makePreset(difficulty: .commitment, duration: 5 * 60),
+            at: start
+        )
+        _ = try source.requestInterruption(.endSession, at: start)
+        let persisted = try XCTUnwrap(source.session)
+
+        XCTAssertNoThrow(
+            try FocusSessionEngine(restoring: persisted, at: start)
+        )
     }
 
     private func makePreset(difficulty: Difficulty, duration: Int = 60 * 60) -> FocusPreset {

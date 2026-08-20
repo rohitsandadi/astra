@@ -34,6 +34,7 @@ public struct BlockedApplication: Identifiable, Codable, Hashable, Sendable {
 public enum FocusPresetValidationError: Error, Equatable, Sendable {
     case emptyName
     case durationOutOfRange
+    case invalidChronology
     case invalidApplication
 }
 
@@ -79,6 +80,9 @@ public struct FocusPreset: Identifiable, Codable, Hashable, Sendable {
         }
         guard Self.allowedDurationSeconds.contains(defaultDurationSeconds) else {
             throw FocusPresetValidationError.durationOutOfRange
+        }
+        guard updatedAt >= createdAt else {
+            throw FocusPresetValidationError.invalidChronology
         }
         guard blockedApplications.allSatisfy({ application in
             !application.bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -256,6 +260,7 @@ public struct EnforcementHealth: Codable, Equatable, Sendable {
 public enum FocusSessionValidationError: Error, Equatable, Sendable {
     case presetDifficultyMismatch
     case invalidChronology
+    case invalidDuration
     case invalidCounters
     case inconsistentBreakState
     case inconsistentChallengeState
@@ -319,7 +324,16 @@ public struct FocusSession: Identifiable, Codable, Equatable, Sendable {
         guard endDate > startDate else {
             throw FocusSessionValidationError.invalidChronology
         }
-        guard breakCount >= 0, interruptionRequestCount >= 0 else {
+        let duration = endDate.timeIntervalSince(startDate)
+        guard duration >= TimeInterval(FocusSessionEngine.allowedSessionDurationSeconds.lowerBound),
+              duration <= TimeInterval(FocusSessionEngine.allowedSessionDurationSeconds.upperBound)
+        else {
+            throw FocusSessionValidationError.invalidDuration
+        }
+        guard breakCount >= 0,
+              interruptionRequestCount >= 0,
+              breakCount <= interruptionRequestCount
+        else {
             throw FocusSessionValidationError.invalidCounters
         }
 
@@ -329,7 +343,8 @@ public struct FocusSession: Identifiable, Codable, Equatable, Sendable {
                 throw FocusSessionValidationError.inconsistentBreakState
             }
         case .onBreak:
-            guard difficulty != .locked,
+            guard breakCount > 0,
+                  difficulty != .locked,
                   let activeBreak,
                   activeBreak.startedAt >= startDate,
                   activeBreak.endsAt > activeBreak.startedAt,
@@ -347,9 +362,16 @@ public struct FocusSession: Identifiable, Codable, Equatable, Sendable {
         }
 
         if let pendingInterruption {
-            guard difficulty != .locked,
+            let expectedWait = FocusSessionEngine.interruptionWaitDuration(
+                for: difficulty,
+                priorRequestCount: interruptionRequestCount - 1
+            )
+            guard interruptionRequestCount > 0,
+                  difficulty != .locked,
                   pendingInterruption.requestedAt >= startDate,
-                  pendingInterruption.availableAt >= pendingInterruption.requestedAt
+                  pendingInterruption.requestedAt < endDate,
+                  pendingInterruption.availableAt >= pendingInterruption.requestedAt,
+                  abs(pendingInterruption.waitDuration - expectedWait) < 0.001
             else {
                 throw FocusSessionValidationError.inconsistentChallengeState
             }
