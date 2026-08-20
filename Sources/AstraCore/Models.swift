@@ -330,7 +330,10 @@ public struct FocusSession: Identifiable, Codable, Equatable, Sendable {
         else {
             throw FocusSessionValidationError.invalidDuration
         }
-        guard breakCount >= 0, interruptionRequestCount >= 0 else {
+        guard breakCount >= 0,
+              interruptionRequestCount >= 0,
+              breakCount <= interruptionRequestCount
+        else {
             throw FocusSessionValidationError.invalidCounters
         }
 
@@ -340,7 +343,8 @@ public struct FocusSession: Identifiable, Codable, Equatable, Sendable {
                 throw FocusSessionValidationError.inconsistentBreakState
             }
         case .onBreak:
-            guard difficulty != .locked,
+            guard breakCount > 0,
+                  difficulty != .locked,
                   let activeBreak,
                   activeBreak.startedAt >= startDate,
                   activeBreak.endsAt > activeBreak.startedAt,
@@ -358,8 +362,10 @@ public struct FocusSession: Identifiable, Codable, Equatable, Sendable {
         }
 
         if let pendingInterruption {
-            guard difficulty != .locked,
+            guard interruptionRequestCount > 0,
+                  difficulty != .locked,
                   pendingInterruption.requestedAt >= startDate,
+                  pendingInterruption.requestedAt < endDate,
                   pendingInterruption.availableAt >= pendingInterruption.requestedAt
             else {
                 throw FocusSessionValidationError.inconsistentChallengeState

@@ -247,6 +247,59 @@ final class FocusSessionEngineTests: XCTestCase {
         }
     }
 
+    func testRestoringSessionRejectsImpossibleInterruptionCounters() {
+        let preset = makePreset(difficulty: .commitment, duration: 5 * 60)
+        let tooManyBreaks = FocusSession(
+            preset: preset,
+            startDate: start,
+            endDate: start.addingTimeInterval(5 * 60),
+            difficulty: .commitment,
+            breakCount: 2,
+            interruptionRequestCount: 1
+        )
+
+        XCTAssertThrowsError(try FocusSessionEngine(restoring: tooManyBreaks, at: start)) { error in
+            XCTAssertEqual(error as? FocusSessionValidationError, .invalidCounters)
+        }
+
+        let breakWithoutCount = FocusSession(
+            preset: preset,
+            startDate: start,
+            endDate: start.addingTimeInterval(5 * 60),
+            difficulty: .commitment,
+            status: .onBreak,
+            activeBreak: FocusBreak(
+                startedAt: start,
+                endsAt: start.addingTimeInterval(60),
+                requestedDurationMinutes: 1
+            ),
+            interruptionRequestCount: 1
+        )
+
+        XCTAssertThrowsError(try FocusSessionEngine(restoring: breakWithoutCount, at: start)) { error in
+            XCTAssertEqual(error as? FocusSessionValidationError, .inconsistentBreakState)
+        }
+    }
+
+    func testRestoringSessionRejectsChallengeWithoutRecordedRequest() {
+        let preset = makePreset(difficulty: .commitment, duration: 5 * 60)
+        let malformed = FocusSession(
+            preset: preset,
+            startDate: start,
+            endDate: start.addingTimeInterval(5 * 60),
+            difficulty: .commitment,
+            pendingInterruption: InterruptionChallenge(
+                kind: .endSession,
+                requestedAt: start,
+                availableAt: start.addingTimeInterval(30)
+            )
+        )
+
+        XCTAssertThrowsError(try FocusSessionEngine(restoring: malformed, at: start)) { error in
+            XCTAssertEqual(error as? FocusSessionValidationError, .inconsistentChallengeState)
+        }
+    }
+
     private func makePreset(difficulty: Difficulty, duration: Int = 60 * 60) -> FocusPreset {
         FocusPreset(
             name: "Deep Work",
