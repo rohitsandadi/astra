@@ -231,6 +231,22 @@ final class FocusSessionEngineTests: XCTestCase {
         }
     }
 
+    func testRestoringSessionRejectsDurationOutsideSupportedRange() {
+        let preset = makePreset(difficulty: .commitment, duration: 5 * 60)
+        for duration in [5 * 60 - 1, 24 * 60 * 60 + 1] {
+            let malformed = FocusSession(
+                preset: preset,
+                startDate: start,
+                endDate: start.addingTimeInterval(TimeInterval(duration)),
+                difficulty: .commitment
+            )
+
+            XCTAssertThrowsError(try FocusSessionEngine(restoring: malformed, at: start)) { error in
+                XCTAssertEqual(error as? FocusSessionValidationError, .invalidDuration)
+            }
+        }
+    }
+
     private func makePreset(difficulty: Difficulty, duration: Int = 60 * 60) -> FocusPreset {
         FocusPreset(
             name: "Deep Work",

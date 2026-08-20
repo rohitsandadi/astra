@@ -34,6 +34,7 @@ public struct BlockedApplication: Identifiable, Codable, Hashable, Sendable {
 public enum FocusPresetValidationError: Error, Equatable, Sendable {
     case emptyName
     case durationOutOfRange
+    case invalidChronology
     case invalidApplication
 }
 
@@ -79,6 +80,9 @@ public struct FocusPreset: Identifiable, Codable, Hashable, Sendable {
         }
         guard Self.allowedDurationSeconds.contains(defaultDurationSeconds) else {
             throw FocusPresetValidationError.durationOutOfRange
+        }
+        guard updatedAt >= createdAt else {
+            throw FocusPresetValidationError.invalidChronology
         }
         guard blockedApplications.allSatisfy({ application in
             !application.bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -256,6 +260,7 @@ public struct EnforcementHealth: Codable, Equatable, Sendable {
 public enum FocusSessionValidationError: Error, Equatable, Sendable {
     case presetDifficultyMismatch
     case invalidChronology
+    case invalidDuration
     case invalidCounters
     case inconsistentBreakState
     case inconsistentChallengeState
@@ -318,6 +323,12 @@ public struct FocusSession: Identifiable, Codable, Equatable, Sendable {
         }
         guard endDate > startDate else {
             throw FocusSessionValidationError.invalidChronology
+        }
+        let duration = endDate.timeIntervalSince(startDate)
+        guard duration >= TimeInterval(FocusSessionEngine.allowedSessionDurationSeconds.lowerBound),
+              duration <= TimeInterval(FocusSessionEngine.allowedSessionDurationSeconds.upperBound)
+        else {
+            throw FocusSessionValidationError.invalidDuration
         }
         guard breakCount >= 0, interruptionRequestCount >= 0 else {
             throw FocusSessionValidationError.invalidCounters
