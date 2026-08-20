@@ -300,6 +300,40 @@ final class FocusSessionEngineTests: XCTestCase {
         }
     }
 
+    func testRestoringSessionRejectsShortenedInterruptionWait() {
+        let preset = makePreset(difficulty: .commitment, duration: 5 * 60)
+        let malformed = FocusSession(
+            preset: preset,
+            startDate: start,
+            endDate: start.addingTimeInterval(5 * 60),
+            difficulty: .commitment,
+            pendingInterruption: InterruptionChallenge(
+                kind: .endSession,
+                requestedAt: start,
+                availableAt: start.addingTimeInterval(6)
+            ),
+            interruptionRequestCount: 1
+        )
+
+        XCTAssertThrowsError(try FocusSessionEngine(restoring: malformed, at: start)) { error in
+            XCTAssertEqual(error as? FocusSessionValidationError, .inconsistentChallengeState)
+        }
+    }
+
+    func testRestoringSessionAcceptsExpectedInterruptionWait() throws {
+        var source = FocusSessionEngine()
+        _ = try source.startSession(
+            preset: makePreset(difficulty: .commitment, duration: 5 * 60),
+            at: start
+        )
+        _ = try source.requestInterruption(.endSession, at: start)
+        let persisted = try XCTUnwrap(source.session)
+
+        XCTAssertNoThrow(
+            try FocusSessionEngine(restoring: persisted, at: start)
+        )
+    }
+
     private func makePreset(difficulty: Difficulty, duration: Int = 60 * 60) -> FocusPreset {
         FocusPreset(
             name: "Deep Work",
